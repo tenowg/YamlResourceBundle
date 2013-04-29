@@ -20,7 +20,76 @@ import java.util.concurrent.ConcurrentMap;
 import org.yaml.snakeyaml.Yaml;
 import sun.util.ResourceBundleEnumeration;
 
-public class YamlResourceBundle {
+public class YamlResourceBundle extends ResourceBundle {
+
+	public static class YamlControl extends ResourceBundle.Control {
+
+		@Override
+		public List<String> getFormats(String baseName) {
+			if (baseName == null) {
+				throw new NullPointerException();
+			}
+			return Arrays.asList("yml", "java.properties");
+		}
+
+		@Override
+		public ResourceBundle newBundle(String baseName, Locale locale, String format, ClassLoader loader, boolean reload) throws IllegalAccessException, InstantiationException, IOException {
+			if (baseName == null || locale == null
+				|| format == null || loader == null) {
+				throw new NullPointerException();
+			}
+
+			String bundleName = toBundleName(baseName, locale);
+
+			ResourceBundle bundle = null;
+			if (format.equals("yml")) {
+				String resourceName = toResourceName(bundleName, format);
+				InputStream stream = null;
+				if (reload) {
+					URL url = loader.getResource(resourceName);
+					if (url != null) {
+						URLConnection connection = url.openConnection();
+						if (connection != null) {
+							// Disable caches to get fresh data for
+							// reloading.
+							connection.setUseCaches(false);
+							stream = connection.getInputStream();
+						}
+					}
+				} else {
+					stream = loader.getResourceAsStream(resourceName);
+				}
+				if (stream != null) {
+					BufferedInputStream bis = new BufferedInputStream(stream);
+					bundle = new YamlResourceBundle(bis);
+					bis.close();
+				} else {
+					FileInputStream fis = null;
+					InputStreamReader reader = null;
+
+					/*try {
+
+					 File file = new File(dataDirectory, resourceName);
+					 if (file.isFile()) { // Also checks for existance
+					 fis = new FileInputStream(file);
+
+					 reader = new InputStreamReader(fis, "UTF-8");
+
+					 bundle = new YmlResourceBundle(reader);
+					 }
+					 } finally {
+					 reader.close();
+					 fis.close();
+					 //IOUtils.closeQuietly(reader);
+					 //IOUtils.closeQuietly(fis);
+					 }*/
+				}
+			} else {
+				bundle = super.newBundle(bundleName, locale, format, loader, reload);
+			}
+			return bundle;
+		}
+	}
 
 	public ResourceBundle getBundle(String bundle, Locale loc, File dataDir) {
 		final File dataDirectory = dataDir;
@@ -64,7 +133,7 @@ public class YamlResourceBundle {
 					}
 					if (stream != null) {
 						BufferedInputStream bis = new BufferedInputStream(stream);
-						bundle = new YmlResourceBundle(bis);
+						bundle = new YamlResourceBundle(bis);
 						bis.close();
 					} else {
 						FileInputStream fis = null;
@@ -78,7 +147,7 @@ public class YamlResourceBundle {
 
 								reader = new InputStreamReader(fis, "UTF-8");
 
-								bundle = new YmlResourceBundle(reader);
+								bundle = new YamlResourceBundle(reader);
 							}
 						} finally {
 							reader.close();
@@ -95,33 +164,35 @@ public class YamlResourceBundle {
 		});
 		return rb;
 	}
+	private ConcurrentMap<String, String> lookup = new ConcurrentHashMap<String, String>();
 
-	private static class YmlResourceBundle extends ResourceBundle {
-
-		private ConcurrentMap<String, String> lookup = new ConcurrentHashMap<String, String>();
-
-		public YmlResourceBundle(InputStream stream) throws IOException {
-			Yaml loader = new Yaml();
-			for (Object item : ((LinkedHashMap) loader.load(stream)).entrySet()) {
-				Entry<String, String> itemEntry = (Entry) item;
-				lookup.put(itemEntry.getKey(), itemEntry.getValue());
-			}
+	public YamlResourceBundle(InputStream stream) throws IOException {
+		Yaml loader = new Yaml();
+		for (Object item : ((LinkedHashMap) loader.load(stream)).entrySet()) {
+			Entry<String, String> itemEntry = (Entry) item;
+			lookup.put(itemEntry.getKey(), itemEntry.getValue());
 		}
+	}
 
-		public YmlResourceBundle(InputStreamReader stream) throws IOException {
-			Yaml loader = new Yaml();
-			for (Object item : ((LinkedHashMap) loader.load(stream)).entrySet()) {
-				Entry<String, String> itemEntry = (Entry) item;
-				lookup.put(itemEntry.getKey(), itemEntry.getValue());
-			}
+	public YamlResourceBundle(InputStreamReader stream) throws IOException {
+		Yaml loader = new Yaml();
+		for (Object item : ((LinkedHashMap) loader.load(stream)).entrySet()) {
+			Entry<String, String> itemEntry = (Entry) item;
+			lookup.put(itemEntry.getKey(), itemEntry.getValue());
 		}
+	}
+	
+	public YamlResourceBundle() {
+		
+	}
 
-		protected Object handleGetObject(String key) {
-			return lookup.get(key);
-		}
+	@Override
+	protected Object handleGetObject(String key) {
+		return lookup.get(key);
+	}
 
-		public Enumeration<String> getKeys() {
-			return new ResourceBundleEnumeration(lookup.keySet(), (parent != null) ? parent.getKeys() : null);
-		}
+	@Override
+	public Enumeration<String> getKeys() {
+		return new ResourceBundleEnumeration(lookup.keySet(), (parent != null) ? parent.getKeys() : null);
 	}
 }
