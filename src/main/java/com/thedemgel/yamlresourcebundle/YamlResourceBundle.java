@@ -22,7 +22,10 @@ import sun.util.ResourceBundleEnumeration;
 
 public class YamlResourceBundle extends ResourceBundle {
 
-	public static class YamlControl extends ResourceBundle.Control {
+	private static File dataDir = null;
+	private ConcurrentMap<String, String> lookup = new ConcurrentHashMap<>();
+
+	public static class Control extends ResourceBundle.Control {
 
 		@Override
 		public List<String> getFormats(String baseName) {
@@ -44,78 +47,33 @@ public class YamlResourceBundle extends ResourceBundle {
 			ResourceBundle bundle = null;
 			if (format.equals("yml")) {
 				String resourceName = toResourceName(bundleName, format);
-				InputStream stream = null;
-				if (reload) {
-					URL url = loader.getResource(resourceName);
-					if (url != null) {
-						URLConnection connection = url.openConnection();
-						if (connection != null) {
-							// Disable caches to get fresh data for
-							// reloading.
-							connection.setUseCaches(false);
-							stream = connection.getInputStream();
-						}
-					}
-				} else {
-					stream = loader.getResourceAsStream(resourceName);
-				}
-				if (stream != null) {
-					BufferedInputStream bis = new BufferedInputStream(stream);
-					bundle = new YamlResourceBundle(bis);
-					bis.close();
-				} else {
+
+				// Try to get files first
+				if (dataDir != null) {
 					FileInputStream fis = null;
 					InputStreamReader reader = null;
 
-					/*try {
+					try {
 
-					 File file = new File(dataDirectory, resourceName);
-					 if (file.isFile()) { // Also checks for existance
-					 fis = new FileInputStream(file);
+						File file = new File(dataDir, resourceName);
+						if (file.isFile()) { // Also checks for existance
+							fis = new FileInputStream(file);
 
-					 reader = new InputStreamReader(fis, "UTF-8");
+							reader = new InputStreamReader(fis, "UTF-8");
 
-					 bundle = new YmlResourceBundle(reader);
-					 }
-					 } finally {
-					 reader.close();
-					 fis.close();
-					 //IOUtils.closeQuietly(reader);
-					 //IOUtils.closeQuietly(fis);
-					 }*/
-				}
-			} else {
-				bundle = super.newBundle(bundleName, locale, format, loader, reload);
-			}
-			return bundle;
-		}
-	}
-
-	public ResourceBundle getBundle(String bundle, Locale loc, File dataDir) {
-		final File dataDirectory = dataDir;
-
-		ResourceBundle rb;
-		rb = ResourceBundle.getBundle(bundle, loc, new ResourceBundle.Control() {
-			@Override
-			public List<String> getFormats(String baseName) {
-				if (baseName == null) {
-					throw new NullPointerException();
-				}
-				return Arrays.asList("yml", "java.properties");
-			}
-
-			@Override
-			public ResourceBundle newBundle(String baseName, Locale locale, String format, ClassLoader loader, boolean reload) throws IllegalAccessException, InstantiationException, IOException {
-				if (baseName == null || locale == null
-					|| format == null || loader == null) {
-					throw new NullPointerException();
+							bundle = new YamlResourceBundle(reader);
+						}
+					} finally {
+						if (reader != null) {
+							reader.close();
+						}
+						if (fis != null) {
+							fis.close();
+						}
+					}
 				}
 
-				String bundleName = toBundleName("lang." + baseName, locale);
-
-				ResourceBundle bundle = null;
-				if (format.equals("yml")) {
-					String resourceName = toResourceName(bundleName, format);
+				if (bundle == null) {
 					InputStream stream = null;
 					if (reload) {
 						URL url = loader.getResource(resourceName);
@@ -131,40 +89,26 @@ public class YamlResourceBundle extends ResourceBundle {
 					} else {
 						stream = loader.getResourceAsStream(resourceName);
 					}
+
 					if (stream != null) {
-						BufferedInputStream bis = new BufferedInputStream(stream);
-						bundle = new YamlResourceBundle(bis);
-						bis.close();
-					} else {
-						FileInputStream fis = null;
-						InputStreamReader reader = null;
-
-						try {
-
-							File file = new File(dataDirectory, resourceName);
-							if (file.isFile()) { // Also checks for existance
-								fis = new FileInputStream(file);
-
-								reader = new InputStreamReader(fis, "UTF-8");
-
-								bundle = new YamlResourceBundle(reader);
-							}
-						} finally {
-							reader.close();
-							fis.close();
-							//IOUtils.closeQuietly(reader);
-							//IOUtils.closeQuietly(fis);
+						try (BufferedInputStream bis = new BufferedInputStream(stream)) {
+							bundle = new YamlResourceBundle(bis);
 						}
 					}
-				} else {
-					bundle = super.newBundle(bundleName, locale, format, loader, reload);
 				}
-				return bundle;
+			} else {
+				bundle = super.newBundle(bundleName, locale, format, loader, reload);
 			}
-		});
-		return rb;
+			return bundle;
+		}
 	}
-	private ConcurrentMap<String, String> lookup = new ConcurrentHashMap<String, String>();
+
+	public static ResourceBundle getBundle(String bundle, Locale loc, File dataDir) {
+
+		YamlResourceBundle.dataDir = dataDir;
+
+		return getBundle(bundle, loc, new YamlResourceBundle.Control());
+	}
 
 	public YamlResourceBundle(InputStream stream) throws IOException {
 		Yaml loader = new Yaml();
@@ -181,9 +125,8 @@ public class YamlResourceBundle extends ResourceBundle {
 			lookup.put(itemEntry.getKey(), itemEntry.getValue());
 		}
 	}
-	
+
 	public YamlResourceBundle() {
-		
 	}
 
 	@Override
