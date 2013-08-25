@@ -15,6 +15,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map.Entry;
 import java.util.ResourceBundle;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import org.yaml.snakeyaml.Yaml;
@@ -113,17 +114,38 @@ public class YamlResourceBundle extends ResourceBundle {
 	public YamlResourceBundle(InputStream stream) throws IOException {
 		Yaml loader = new Yaml();
 		for (Object item : ((LinkedHashMap) loader.load(stream)).entrySet()) {
-			Entry<String, String> itemEntry = (Entry) item;
-			lookup.put(itemEntry.getKey(), itemEntry.getValue());
+			Entry<String, Object> itemEntry = (Entry) item;
+			getEntry(itemEntry.getKey(), itemEntry.getValue());
+			
+			Entry<String, String> iEntry = (Entry) item;
+			lookup.put(iEntry.getKey(), iEntry.getValue());
 		}
 	}
 
 	public YamlResourceBundle(InputStreamReader stream) throws IOException {
 		Yaml loader = new Yaml();
 		for (Object item : ((LinkedHashMap) loader.load(stream)).entrySet()) {
-			Entry<String, String> itemEntry = (Entry) item;
-			lookup.put(itemEntry.getKey(), itemEntry.getValue());
+			Entry<String, Object> itemEntry = (Entry) item;
+			getEntry(itemEntry.getKey(), itemEntry.getValue());
+			
+			Entry<String, String> iEntry = (Entry) item;
+			lookup.put(iEntry.getKey(), iEntry.getValue());
 		}
+	}
+
+	private void getEntry(String key, Object item) {
+		if (item instanceof LinkedHashMap) {
+			LinkedHashMap itemEntry = (LinkedHashMap) item;
+			for (Object i : itemEntry.entrySet()) {
+				Entry<String, Object> ii = (Entry) i;
+				//System.out.println(ii.getKey());
+				getEntry(key + "." + ii.getKey(), ii.getValue());
+			}
+		} else {
+			//System.out.println(key + " -- " + (String) item);
+			lookup.put(key, (String) item);
+		}
+		
 	}
 
 	public YamlResourceBundle() {
